@@ -10,6 +10,8 @@ CPU run command:
 '''
 import numpy as np
 np.random.seed(1337)
+#random.seed(1337)
+import keras
 import pandas as pd
 from keras.preprocessing.text import Tokenizer
 from keras.layers.embeddings import Embedding
@@ -18,14 +20,22 @@ from keras.layers import recurrent
 from keras.models import Sequential
 from keras.preprocessing.sequence import pad_sequences
 from keras.utils import np_utils
+from keras.objectives import mse as MMSE
+from keras.optimizers import RMSprop
+import theano
+import theano.tensor as K
 import math
 import random
-random.seed(1337)
 
 # #Read The Data
 
-mydata = pd.read_csv('All.csv',sep=',',quotechar='"')
-
+#mydata = pd.read_csv('All.csv',sep=',',quotechar='"')
+#mydata = pd.read_csv('All_cleaned.csv',sep=',',quotechar='"')
+mydata = pd.read_csv('All_programmers_outliered.csv',sep=',',quotechar='"')
+#mydata = pd.read_csv('All_programmers.csv',sep=',',quotechar='"')
+print len(mydata)
+mydata =mydata.dropna()
+print len(mydata)
 MORE_THAN_MEAN_BY= 0
 mydata['a_words'] = map(lambda x:x.split(),mydata['body'])
 mydata['q_words'] = map(lambda x:x.split(),mydata['q_body'])
@@ -35,9 +45,11 @@ Q_MAX = max(mydata['q_bdlen'])
 A_MAX = max(mydata['a_bdlen'])
 Q_MEAN = int(math.floor(np.mean(mydata['q_bdlen']))+MORE_THAN_MEAN_BY)
 A_MEAN=int(math.floor(np.mean(mydata['a_bdlen']))+MORE_THAN_MEAN_BY)
-print min(mydata['q_bdlen']),Q_MAX,Q_MEAN-MORE_THAN_MEAN_BY
-print min(mydata['a_bdlen']),A_MAX,A_MEAN-MORE_THAN_MEAN_BY
-
+print min(mydata['q_bdlen']),Q_MAX,Q_MEAN-MORE_THAN_MEAN_BY,mydata['q_bdlen'].median()
+print min(mydata['a_bdlen']),A_MAX,A_MEAN-MORE_THAN_MEAN_BY,mydata['a_bdlen'].median()
+exit()
+#Q_MEAN = 38 #median
+#A_MEAN = 86 #median
 def GetDataW(splitper=0.2):
     global mydata
     splitper = int(math.floor(splitper * len(mydata)) + 1)
@@ -92,17 +104,20 @@ print('Questions Max Length, Answers Max Length = {}, {}'.format(Q_MAX, A_MAX))
 
 
 RNN = recurrent.LSTM
-EMBED_HIDDEN_SIZE = 5
+EMBED_HIDDEN_SIZE = 4
+LSTM_HIDDEN_SIZE = 4
+D1Size = 100
+D2Size = 100
 #1-inf
 BATCH_SIZE = 32
 #1-inf
-EPOCHS = 100
+EPOCHS =5
 #Done
 #SGD, RMSprop, Adagrad, Adadelta, Adam, Adamax
-theoptimizer = 'Adam'
+theoptimizer = 'Adagrad'
 #DONE
 #0.1-0.9
-thedropout =0.5
+thedropout =0.3
 #DONE
 #softmax,softplus,relu,tanh,sigmoid,hard_sigmoid,linear,
 FirstActivation = 'relu'
@@ -114,45 +129,51 @@ SecondActivation='softmax'
 theloss='mse'
 #DONE
 #======================
-results = open('results.txt','a')
-results.write('\nBatchSize:{},EPOCH:{},Optimizer:{},Dropout:{},1stActivation:{},2ndActivation:{},theloss:{},QVectorLength:{},AVectorLength:{},HIDDENSIZE:{}'\
-.format(BATCH_SIZE,EPOCHS,theoptimizer,thedropout,FirstActivation,SecondActivation,theloss,Q_MEAN,A_MEAN,EMBED_HIDDEN_SIZE))
-
+print (theoptimizer)
 print('Build model...')
+
 
 Questions = Sequential()
 Questions.add(Embedding(vocab_size, EMBED_HIDDEN_SIZE, input_length=Q_MEAN, mask_zero=True))
 Questions.add(Dropout(thedropout))
-Questions.add(RNN(EMBED_HIDDEN_SIZE, return_sequences=False))
+Questions.add(RNN(LSTM_HIDDEN_SIZE, return_sequences=False))
 
 Answers = Sequential()
 Answers.add(Embedding(vocab_size, EMBED_HIDDEN_SIZE, input_length=A_MEAN,mask_zero=True))
 Answers.add(Dropout(thedropout))
-Answers.add(RNN(EMBED_HIDDEN_SIZE, return_sequences=False))
+Answers.add(RNN(LSTM_HIDDEN_SIZE, return_sequences=False))
 
 print Questions.output_shape
 print Answers.output_shape
 m = Merge([Questions, Answers], mode='concat')
 print m.output_shape
 
+def NMSE(y_true, y_pred):
+    nmse = K.mean(K.square(y_pred-y_true)/(K.mean(y_pred)*K.mean(y_true)))
+    results.write('\n MSE IS:= {}'.format(MMSE(y_true,y_pred)))
+    return nmse
 
 model = Sequential()
 model.add(Merge([Questions, Answers], mode='concat'))
 
 #model.add(RNN(EMBED_HIDDEN_SIZE, return_sequences=False))
-model.add(Dropout(0.3))
+model.add(Dropout(thedropout))
+model.add(Dense(D1Size, activation='linear'))
+model.add(Dense(D2Size, activation='linear'))
 model.add(Dense(1, activation='linear'))
-
 model.compile(optimizer=theoptimizer,
-              loss=theloss,
-              metrics=['accuracy'])
+              loss=theloss)
 
 print('Training')
-hist = model.fit([Qx_trn, Ax_trn], y_trn, batch_size=BATCH_SIZE, nb_epoch=EPOCHS, validation_split=0.05)
-losst, acct = model.evaluate([Qx_trn, Ax_trn], y_trn, batch_size=BATCH_SIZE)
-results.write('\n Train loss / Train accuracy = {} / {}'.format(losst, acct))
-loss, acc = model.evaluate([Qx_test, Ax_test], y_test, batch_size=BATCH_SIZE)
-results.write('\n Test loss / test accuracy = {} / {}'.format(loss, acc))
+#kcb = keras.callbacks.ModelCheckpoint('tmp/weights.{epoch:02d}-{val_loss:.2f}.hdf5', monitor='val_loss', verbose=1, save_best_only=True, mode='auto')
+hist = model.fit([Qx_trn, Ax_trn], y_trn, batch_size=BATCH_SIZE, nb_epoch=EPOCHS, validation_split=0.05)#,callbacks =[kcb])
+losst= model.evaluate([Qx_trn, Ax_trn], y_trn, batch_size=BATCH_SIZE)
+#results.write('\n Train loss= {}'.format(losst))
+loss= model.evaluate([Qx_test, Ax_test], y_test, batch_size=BATCH_SIZE)
+results = open('results.txt','a')
+results.write('\nBatchSize:{},EPOCH:{},Optimizer:{},Dropout:{},1stActivation:{},2ndActivation:{},theloss:{},QVectorLength:{},AVectorLength:{},D1Size:{},D2Size:{},LSTM_HS:{},EMB_HS:{}\n Train loss:{} \n Test loss:{}'\
+.format(BATCH_SIZE,EPOCHS,theoptimizer,thedropout,FirstActivation,SecondActivation,theloss,Q_MEAN,A_MEAN,D1Size,D2Size,LSTM_HIDDEN_SIZE,EMBED_HIDDEN_SIZE,losst,loss))
+
 results.close()
 prediction_Y= model.predict([Qx_test, Ax_test],batch_size=BATCH_SIZE)
 with open('RNNOUTPUT.csv','w') as output:
