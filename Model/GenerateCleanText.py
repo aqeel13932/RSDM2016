@@ -1,5 +1,6 @@
 import xml.etree.ElementTree
 import re
+import string
 from nltk.corpus import stopwords
 #from nltk.stem.porter import *
 from stemming.porter2 import stem
@@ -13,11 +14,13 @@ def RemoveStopWords(sentence):
     #sentence = map(lambda x:x.lower() if x.lower() not in stopwrods else '',sentence)
     newsen = filter(None, filtered_words)
     return ' '.join(filtered_words)
-
 def cleanhtml(raw_html):
   cleanr =re.compile('<.*?>')
   cleantext = re.sub(cleanr,'', raw_html)
+  if (type(raw_html) is str):
+        cleantext = cleantext.translate(string.maketrans("",""),"~`!@#$%^&*()_+=-]}[{\|?/.>,<;:'")
   cleantext = re.sub('\n',' ', cleantext)
+  cleantext = re.sub('\t',' ', cleantext)
   cleantext = re.sub('"','', cleantext)
   cleantext = RemoveStopWords(cleantext.split())
   return cleantext
@@ -60,7 +63,7 @@ for i in As.keys():
 
 print 'Saving Data'
 
-with open('All.csv','w') as output:
+with open('All_programmers.csv','w') as output:
     output.write('{},{},{},{},{},{},{},{}\n'.format('id','score','parent','body','q_score','q_ansrcnt','q_ViewCount','q_body'))
     for i in As.keys():
         try:

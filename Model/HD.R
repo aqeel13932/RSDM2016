@@ -108,19 +108,39 @@ print(quantile(nattr$n_attr,probs = seq(0,1,.1)))
 hist(nattr$n_attr,main="Number of attributes per product", xlab="N Attributes",ylab="Frequency",col="skyblue1")
 
 
-
+rm(list=ls())
 nids <- read.csv('RNNOUTPUT.csv',header = TRUE)
-hist(nids$id,main = 'Histogram of Prediction',xlab= 'Predicted Votes')
+hist(nids$id,main = 'Histogram of Prediction for astronomy dataset',xlab= 'Predicted Votes')
 
 test<- read.csv('test.csv',header = TRUE)
-e<-test$score - nids$id
-which(e==max(e))
-test[578,]
+test$predict = nids$id
+test$Error = (test$score - nids$id)^2
+test[which(test$Error==max(test$Error)),]$id
+test[which(test$Error==max(test$Error)),]$predict
+test[which(test$Error==max(test$Error)),]$score
+test[which(test$Error==min(test$Error)),]$id
+test[which(test$Error==min(test$Error)),]$predict
+test[which(test$Error==min(test$Error)),]$score
+
 t <-sort(e)
 View(t)
 plot(density(nids$id))
 plot(density(test$score))
 bandwidth =11
-plot(density(nids$id,kernel = "gaussian"),col="RED",type = "l",main="Predict (Green) & Score(Red) Density")
+png('astronomy_density.png',width = 855,height = 410)
+plot(density(nids$id,kernel = "gaussian"),col="RED",type = "l",main="Predict Votes(Green) &  Votes(Red) Density in astronomy dataset")
 lines(density(test$score,kernel = "gaussian"),col="green")
+dev.off()
 hist(test$score)
+
+
+##### calculate mean square error ###
+rm(list=ls())
+setwd('/home/aqeel/Study/RSDM2016/Model/')
+ads = read.csv('All_astronomy_outliered.csv')
+m <-mean(ads$score)
+mean((m-ads$score)^2)
+#Programming
+ads = read.csv('All_programmers_outliered.csv')
+m <-mean(ads$score)
+mean((m-ads$score)^2)
