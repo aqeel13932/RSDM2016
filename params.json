@@ -1,0 +1,6 @@
+{
+  "name": "Votes prediction in StackExchange Answers",
+  "tagline": "Deep learning, LSTM, Neural networks",
+  "body": "# Votes prediction in StackExchange Answers\r\nIn this project I tried to predict the answer votes depending only on the (question,answer) Text.\r\n",
+  "note": "Don't delete this file! It's used internally to help with page regeneration."
+}
